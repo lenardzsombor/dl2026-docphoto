@@ -49,4 +49,32 @@ def build_splits(df: pd.DataFrame, group_column: str = "group_strict", val_fract
     looks like. Together they cover every row exactly once, and no value of
     `group_column` is on both sides.
     """
-    raise NotImplementedError("TASK 1: the grouped split")
+    # 1. Take distinct values of group_column in ascending order
+    groups = np.sort(df[group_column].unique())
+    
+    # 2. Shuffle them using np.random.default_rng(seed).shuffle
+    rng = np.random.default_rng(seed)
+    rng.shuffle(groups)
+    
+    total_rows = len(df)
+    target_val_rows = total_rows * val_fraction
+    
+    val_groups = []
+    val_row_count = 0
+    
+    # 3. Move units to the validation side in that order until validation holds at least val_fraction of rows
+    for g in groups:
+        val_groups.append(g)
+        val_row_count += (df[group_column] == g).sum()
+        if val_row_count >= target_val_rows:
+            break
+            
+    # Create boolean masks for validation and training sets
+    val_mask = df[group_column].isin(val_groups)
+    train_mask = ~val_mask
+    
+    # Extract positional integer indices using np.where
+    val_idx = np.where(val_mask)[0]
+    train_idx = np.where(train_mask)[0]
+    
+    return train_idx, val_idx

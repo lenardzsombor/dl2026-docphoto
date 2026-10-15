@@ -25,7 +25,36 @@ import torch.nn as nn
 class MLP(nn.Module):
     def __init__(self, in_dim: int, hidden: list[int], dropout: float = 0.3, prior: float = 0.5):
         super().__init__()
-        raise NotImplementedError("TASK 2: build the layers")
+        layers = []
+        current_dim = in_dim
+        
+        # Build one Linear + nonlinearity + Dropout block per entry in hidden
+        for h_dim in hidden:
+            layers.append(nn.Linear(current_dim, h_dim))
+            layers.append(nn.ReLU())
+            if dropout > 0.0:
+                layers.append(nn.Dropout(p=dropout))
+            current_dim = h_dim
+            
+        self.hidden_layers = nn.Sequential(*layers)
+        
+        # Final output layer mapping to 1 scalar logit/value
+        self.output_layer = nn.Linear(current_dim, 1)
+        
+        # Initialize the output bias using the logit of the prior training mean.
+        # Starting the bias at logit(prior) ensures the untrained network's 
+        # initial predictions sit right at the prior mean.
+        # Clipped slightly away from 0 and 1 to prevent log(0) or log(inf).
+        clipped_prior = max(min(prior, 1.0 - 1e-7), 1e-7)
+        initial_bias = torch.logit(torch.tensor(clipped_prior))
+        self.output_layer.bias.data.fill_(initial_bias)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        raise NotImplementedError("TASK 2: one number in [0, 1] per row, shape (batch,)")
+
+        x = self.hidden_layers(x)
+        
+        # Project to final layer and squeeze to shape (batch,) instead of (batch, 1)
+        logits = self.output_layer(x).squeeze(-1)
+        
+        # Bound the output in [0, 1] via Sigmoid
+        return torch.sigmoid(logits)
